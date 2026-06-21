@@ -1,50 +1,55 @@
 // src/pages/user/Schedule.jsx
-// Day-by-day schedule with expandable event cards
+// Schedule page — Today's events and Upcoming events
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { useEvents } from '../../context/EventsContext'
-import { useGroupConfig } from '../../context/GroupConfigContext'
-import { getGroupBySection } from '../../data/groups'
 import { formatTime } from '../../utils/formatters'
 import { getVenueByName } from '../../data/venues'
 import VenueDirections from '../../components/VenueDirections'
 import './Schedule.css'
 
-const DAY_LABELS = ['Day 1 · Mon', 'Day 2 · Tue', 'Day 3 · Wed', 'Day 4 · Thu', 'Day 5 · Fri', 'Day 6 · Sat']
-
 export default function Schedule() {
-  const { profile, isAdmin } = useAuth()
-  const { groupConfig } = useGroupConfig()
   const { events, loading } = useEvents()
-  const [selectedDay, setSelectedDay] = useState(1)
-  const [currentDay, setCurrentDay] = useState(1)
+  const [activeTab, setActiveTab] = useState('today') // 'today' | 'upcoming'
   const [expandedId, setExpandedId] = useState(null)
   const [venueModal, setVenueModal] = useState(null) // { venue, directions }
 
-  // Auto-select today's day based on orientation start
-  useEffect(() => {
+  const { todayEvents, upcomingEvents } = useMemo(() => {
     const now = new Date()
-    const dayOfWeek = now.getDay() // 0=Sun, 1=Mon ... 6=Sat
-    if (dayOfWeek >= 1 && dayOfWeek <= 6) {
-      setSelectedDay(dayOfWeek) // Mon=1, Tue=2... Sat=6
-      setCurrentDay(dayOfWeek)
-    }
-  }, [])
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const tomorrowStart = todayStart + 24 * 60 * 60 * 1000
 
-  // Determine current user's group
-  const userGroup = useMemo(() => {
-    return profile?.group || getGroupBySection(profile?.section, groupConfig)
-  }, [profile?.group, profile?.section, groupConfig])
+    const today = []
+    const upcoming = []
 
-  const dayEvents = useMemo(() => {
-    return events.filter(e => {
-      if (e.dayNumber !== selectedDay || e.status !== 'active') return false
-      if (isAdmin) return true
-      if (!e.targetGroup || e.targetGroup === 'all') return true
-      return e.targetGroup === userGroup
+    events.forEach(e => {
+      if (e.status !== 'active') return
+      
+      const start = e.startTime?.toDate ? e.startTime.toDate() : new Date(e.startTime)
+      const startTimeMs = start.getTime()
+
+      if (startTimeMs >= todayStart && startTimeMs < tomorrowStart) {
+        today.push(e)
+      } else if (startTimeMs >= tomorrowStart) {
+        upcoming.push(e)
+      }
     })
-  }, [events, selectedDay, isAdmin, userGroup])
+
+    // Sort by start time ascending
+    const sortFn = (a, b) => {
+      const aStart = a.startTime?.toDate ? a.startTime.toDate().getTime() : new Date(a.startTime).getTime()
+      const bStart = b.startTime?.toDate ? b.startTime.toDate().getTime() : new Date(b.startTime).getTime()
+      return aStart - bStart
+    }
+
+    return {
+      todayEvents: today.sort(sortFn),
+      upcomingEvents: upcoming.sort(sortFn)
+    }
+  }, [events])
+
+  const displayedEvents = activeTab === 'today' ? todayEvents : upcomingEvents
 
   function toggleExpand(id) {
     setExpandedId(prev => prev === id ? null : id)
@@ -66,26 +71,26 @@ export default function Schedule() {
       <div className="schedule-header">
         <div className="schedule-header__inner">
           <h1 className="schedule-header__title">Schedule</h1>
-          <p className="schedule-header__sub">Orientation Week</p>
+          <p className="schedule-header__sub">Campus Events</p>
         </div>
 
-        {/* Day selector */}
+        {/* Tab selector */}
         <div className="day-selector">
           <div className="day-selector__scroll">
-            {DAY_LABELS.map((label, i) => {
-              const day = i + 1
-              const count = events.filter(e => e.dayNumber === day && e.status === 'active').length
-              return (
-                <button
-                  key={day}
-                  className={`day-pill ${selectedDay === day ? 'day-pill--active' : ''}`}
-                  onClick={() => { setSelectedDay(day); setExpandedId(null) }}
-                >
-                  <span className="day-pill__label">{label}</span>
-                  {count > 0 && <span className="day-pill__count">{count}</span>}
-                </button>
-              )
-            })}
+            <button
+              className={`day-pill ${activeTab === 'today' ? 'day-pill--active' : ''}`}
+              onClick={() => { setActiveTab('today'); setExpandedId(null) }}
+            >
+              <span className="day-pill__label">Today</span>
+              {todayEvents.length > 0 && <span className="day-pill__count">{todayEvents.length}</span>}
+            </button>
+            <button
+              className={`day-pill ${activeTab === 'upcoming' ? 'day-pill--active' : ''}`}
+              onClick={() => { setActiveTab('upcoming'); setExpandedId(null) }}
+            >
+              <span className="day-pill__label">Upcoming</span>
+              {upcomingEvents.length > 0 && <span className="day-pill__count">{upcomingEvents.length}</span>}
+            </button>
           </div>
         </div>
       </div>
@@ -98,25 +103,27 @@ export default function Schedule() {
               <div key={i} className="skeleton-card" />
             ))}
           </div>
-        ) : selectedDay < currentDay ? (
+        ) : displayedEvents.length === 0 ? (
           <div className="schedule-empty">
             <span className="schedule-empty__icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {activeTab === 'today' ? (
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              ) : (
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              )}
             </span>
-            <p className="schedule-empty__text">No schedule for the day</p>
-            <p className="schedule-empty__sub">This day's schedule has already passed.</p>
-          </div>
-        ) : dayEvents.length === 0 ? (
-          <div className="schedule-empty">
-            <span className="schedule-empty__icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </span>
-            <p className="schedule-empty__text">No events for {DAY_LABELS[selectedDay - 1]}</p>
-            <p className="schedule-empty__sub">Events will appear here once the admin adds them.</p>
+            <p className="schedule-empty__text">
+              {activeTab === 'today' ? "No events scheduled for today" : "No upcoming events"}
+            </p>
+            <p className="schedule-empty__sub">
+              {activeTab === 'today' 
+                ? "Check the Upcoming tab for future events." 
+                : "New events will appear here once announced."}
+            </p>
           </div>
         ) : (
           <div className="schedule-list">
-            {dayEvents.map((event, idx) => {
+            {displayedEvents.map((event, idx) => {
               const isExpanded = expandedId === event.id
               const badge = getStatusBadge(event)
               return (
@@ -129,13 +136,21 @@ export default function Schedule() {
                   {/* Timeline dot */}
                   <div className="schedule-card__timeline">
                     <div className={`timeline-dot ${badge?.type === 'live' ? 'timeline-dot--live' : badge?.type === 'done' ? 'timeline-dot--done' : ''}`} />
-                    {idx < dayEvents.length - 1 && <div className="timeline-line" />}
+                    {idx < displayedEvents.length - 1 && <div className="timeline-line" />}
                   </div>
 
                   <div className="schedule-card__body">
                     {/* Collapsed view */}
                     <div className="schedule-card__header">
                       <div className="schedule-card__time">
+                        {activeTab === 'upcoming' && event.startTime && (
+                          <span style={{ marginRight: '8px', color: 'var(--color-text-secondary)' }}>
+                            {event.startTime?.toDate 
+                              ? event.startTime.toDate().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                              : new Date(event.startTime).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                            {' · '}
+                          </span>
+                        )}
                         {formatTime(event.startTime)}
                         {event.endTime && ` – ${formatTime(event.endTime)}`}
                       </div>
@@ -167,8 +182,12 @@ export default function Schedule() {
                         <p className="schedule-detail__text">{event.venue}</p>
                       </div>
                       <div className="schedule-detail">
-                        <h4 className="schedule-detail__label">Time</h4>
+                        <h4 className="schedule-detail__label">Date & Time</h4>
                         <p className="schedule-detail__text">
+                          {event.startTime?.toDate 
+                            ? event.startTime.toDate().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })
+                            : new Date(event.startTime).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' })}
+                          <br />
                           {formatTime(event.startTime)} – {formatTime(event.endTime)}
                         </p>
                       </div>

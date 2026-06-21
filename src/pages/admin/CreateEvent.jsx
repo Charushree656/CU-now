@@ -6,8 +6,6 @@ import { useNavigate } from 'react-router-dom'
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { useAuth } from '../../hooks/useAuth'
-import { useGroupConfig } from '../../context/GroupConfigContext'
-import { getTargetGroupOptions } from '../../data/groups'
 import { VENUE_LIST, getDefaultDirections } from '../../data/venues'
 import Navbar from '../../components/Navbar'
 import CustomDayPicker from '../../components/CustomDayPicker'
@@ -19,7 +17,6 @@ import './Admin.css'
 export default function CreateEvent() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { groupConfig } = useGroupConfig()
 
   const [form, setForm] = useState({
     dayNumber: '1',
@@ -125,17 +122,6 @@ export default function CreateEvent() {
               value={form.dayNumber} 
               onChange={handleChange} 
             />
-          </div>
-
-          {/* Target Group */}
-          <div className="form-group">
-            <label className="form-label">Target Group *</label>
-            <CustomSelect
-              value={form.targetGroup}
-              options={getTargetGroupOptions(groupConfig)}
-              onChange={(val) => handleChange({ target: { name: 'targetGroup', value: val } })}
-            />
-            <p className="form-hint">Only students in the selected group will see this event.</p>
           </div>
 
           {/* Event Name */}

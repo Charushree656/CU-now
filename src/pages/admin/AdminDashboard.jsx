@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom'
 import { collection, query, orderBy, onSnapshot, doc, deleteDoc, updateDoc, where, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { formatTime, timeAgo } from '../../utils/formatters'
-import { getGroupLabel } from '../../data/groups'
 import Navbar from '../../components/Navbar'
 import ConfirmModal from '../../components/ConfirmModal'
 import './Admin.css'
@@ -246,9 +245,6 @@ export default function AdminDashboard() {
                       <div className="admin-event-info">
                         <span className={`admin-event-status admin-event-status--${event.status}`}>
                           {event.status}
-                        </span>
-                        <span className="admin-event-group-badge">
-                          {getGroupLabel(event.targetGroup)}
                         </span>
                         <h4 className="admin-event-name">{event.name}</h4>
                         <p className="admin-event-meta">

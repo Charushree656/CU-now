@@ -127,6 +127,24 @@
   font-weight: 500;
 }
 
+.profile-guest-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.dark .profile-guest-badge {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+}
+
 /* Detail rows */
 .profile-rows {
   border-top: 1px solid var(--color-bg-border);

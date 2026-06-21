@@ -1,6 +1,6 @@
 // src/pages/auth/Login.jsx
 // Premium Christ University CU Now login page
-// Copied and adapted from reference app (event-fest-app)
+// Supports Student, Guest, and Admin login modes
 
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -38,14 +38,14 @@ function authErrorMessage(code) {
     case 'auth/unauthorized-domain':
       return 'This domain is not authorized in Firebase Auth.'
     case 'auth/invalid-domain':
-      return 'Only Christ University email IDs (@christuniversity.in) are allowed.'
+      return 'Only Christ University email IDs (@christuniversity.in) are allowed for student login.'
     default:
       return 'Sign-in failed. Please try again.'
   }
 }
 
 async function ensureStudentProfile(firebaseUser, navigate) {
-  // Enforce Christ University email domain
+  // Enforce Christ University email domain for students
   if (!firebaseUser.email?.endsWith(ALLOWED_DOMAIN)) {
     await signOut(auth)
     throw { code: 'auth/invalid-domain' }
@@ -78,6 +78,31 @@ async function ensureStudentProfile(firebaseUser, navigate) {
     navigate('/admin-onboarding', { replace: true })
   } else if (!data.onboarded) navigate('/onboarding', { replace: true })
   else if (data.role === 'admin') navigate('/admin', { replace: true })
+  else navigate('/dashboard', { replace: true })
+}
+
+async function ensureGuestProfile(firebaseUser, navigate) {
+  // No domain restriction for guests — any email allowed
+  const userRef = doc(db, 'users', firebaseUser.uid)
+  const userSnap = await getDoc(userRef)
+
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      uid: firebaseUser.uid,
+      name: firebaseUser.displayName || '',
+      email: firebaseUser.email,
+      photoURL: firebaseUser.photoURL,
+      role: 'guest',
+      onboarded: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    navigate('/onboarding', { replace: true })
+    return
+  }
+
+  const data = userSnap.data()
+  if (!data.onboarded) navigate('/onboarding', { replace: true })
   else navigate('/dashboard', { replace: true })
 }
 
@@ -135,6 +160,16 @@ function UserIcon({ className }) {
   )
 }
 
+function GlobeIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+  )
+}
+
 function LockIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -185,6 +220,7 @@ export default function Login() {
         if (!result || !mounted) return
         const mode = sessionStorage.getItem(LOGIN_MODE_KEY) || 'student'
         if (mode === 'admin') await ensureAdminProfile(result.user, navigate)
+        else if (mode === 'guest') await ensureGuestProfile(result.user, navigate)
         else await ensureStudentProfile(result.user, navigate)
       } catch (err) {
         console.error(err)
@@ -206,6 +242,7 @@ export default function Login() {
     try {
       const result = await signInWithPopup(auth, googleProvider)
       if (mode === 'admin') await ensureAdminProfile(result.user, navigate)
+      else if (mode === 'guest') await ensureGuestProfile(result.user, navigate)
       else await ensureStudentProfile(result.user, navigate)
     } catch (err) {
       console.error(err)
@@ -226,6 +263,48 @@ export default function Login() {
       </div>
     )
   }
+
+  // Card config per mode
+  const cardConfig = {
+    student: {
+      title: 'Student Login',
+      action: 'Continue with Google',
+      role: 'For Christ University students',
+      support: 'Quick and secure access with your Christ University account',
+      supportIcon: <UserIcon className="login-card__support-icon" />,
+      btnId: 'student-signin-btn',
+      cardClass: 'login-card-single--student',
+      iconClass: 'login-card__icon--student',
+      btnClass: 'login-btn--student',
+    },
+    guest: {
+      title: 'Guest Login',
+      action: 'Continue with Google',
+      role: 'For visitors & outsiders',
+      support: 'Sign in with any Google account to explore campus events',
+      supportIcon: <GlobeIcon className="login-card__support-icon" />,
+      btnId: 'guest-signin-btn',
+      cardClass: 'login-card-single--guest',
+      iconClass: 'login-card__icon--guest',
+      btnClass: 'login-btn--guest',
+    },
+    admin: {
+      title: 'Admin Login',
+      action: 'Sign in with Google',
+      role: 'For faculty & administrators',
+      support: 'Secure access for event creators and managers',
+      supportIcon: <LockIcon className="login-card__support-icon" />,
+      btnId: 'admin-signin-btn',
+      cardClass: 'login-card-single--admin',
+      iconClass: 'login-card__icon--admin',
+      btnClass: 'login-btn--admin',
+    },
+  }
+
+  const cfg = cardConfig[loginMode]
+
+  // Compute slider position for 3-way toggle
+  const sliderClass = loginMode === 'guest' ? 'login-toggle__slider--center' : loginMode === 'admin' ? 'login-toggle__slider--right' : ''
 
   return (
     <div className="login-page">
@@ -272,14 +351,14 @@ export default function Login() {
         </div>
 
         <p className="login-description login-animate-in login-animate-in--desc">
-          Choose how you want to sign in to access your orientation schedule.
+          Choose how you want to sign in to explore campus events and navigation.
         </p>
 
-        {/* ---- SEGMENTED TOGGLE ---- */}
+        {/* ---- SEGMENTED TOGGLE (3-way) ---- */}
         <div className="login-toggle login-animate-in login-animate-in--cards">
-          <div className="login-toggle__track">
+          <div className="login-toggle__track login-toggle__track--three">
             <div
-              className={`login-toggle__slider ${loginMode === 'admin' ? 'login-toggle__slider--right' : ''}`}
+              className={`login-toggle__slider login-toggle__slider--third ${sliderClass}`}
             />
             <button
               type="button"
@@ -287,6 +366,13 @@ export default function Login() {
               onClick={() => { setLoginMode('student'); setError('') }}
             >
               <span>Student</span>
+            </button>
+            <button
+              type="button"
+              className={`login-toggle__btn ${loginMode === 'guest' ? 'login-toggle__btn--active' : ''}`}
+              onClick={() => { setLoginMode('guest'); setError('') }}
+            >
+              <span>Guest</span>
             </button>
             <button
               type="button"
@@ -299,49 +385,43 @@ export default function Login() {
         </div>
 
         {/* ---- ADAPTIVE LOGIN CARD ---- */}
-        <div className={`login-card-single login-animate-in login-animate-in--cards ${loginMode === 'student' ? 'login-card-single--student' : 'login-card-single--admin'}`}>
+        <div className={`login-card-single login-animate-in login-animate-in--cards ${cfg.cardClass}`}>
           <div className="login-card__content" key={loginMode}>
             {/* Icon */}
-            <div className={`login-card__icon ${loginMode === 'student' ? 'login-card__icon--student' : 'login-card__icon--admin'}`}>
+            <div className={`login-card__icon ${cfg.iconClass}`}>
               <GoogleIcon />
             </div>
 
             <span className="login-card__title">
-              {loginMode === 'student' ? 'Student Login' : 'Admin Login'}
+              {cfg.title}
             </span>
             <span className="login-card__action">
-              {loginMode === 'student' ? 'Continue with Google' : 'Sign in with Google'}
+              {cfg.action}
             </span>
             <span className="login-card__role">
-              {loginMode === 'student' ? 'For students' : 'For faculty & administrators'}
+              {cfg.role}
             </span>
 
             {/* Support text */}
             <div className="login-card__support">
-              {loginMode === 'student' ? (
-                <UserIcon className="login-card__support-icon" />
-              ) : (
-                <LockIcon className="login-card__support-icon" />
-              )}
+              {cfg.supportIcon}
               <span className="login-card__support-text">
-                {loginMode === 'student'
-                  ? 'Quick and secure access with your Christ University account'
-                  : 'Secure access for event creators and managers'}
+                {cfg.support}
               </span>
             </div>
 
             {/* CTA */}
             <button
-              id={loginMode === 'student' ? 'student-signin-btn' : 'admin-signin-btn'}
+              id={cfg.btnId}
               onClick={() => handleGoogleSignIn(loginMode)}
               disabled={loading}
-              className={`login-btn ${loginMode === 'student' ? 'login-btn--student' : 'login-btn--admin'}`}
+              className={`login-btn ${cfg.btnClass}`}
             >
               {loading ? (
                 <div className="login-spinner" />
               ) : (
                 <>
-                  {loginMode === 'student' ? 'Continue with Google' : 'Sign in with Google'}
+                  {cfg.action}
                   <span className="login-btn__arrow">→</span>
                 </>
               )}

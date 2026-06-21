@@ -4,15 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { signOut } from 'firebase/auth'
 import { auth } from '../../firebase'
 import { useAuth } from '../../hooks/useAuth'
-import { useGroupConfig } from '../../context/GroupConfigContext'
-import { getGroupBySection, getGroupLabel } from '../../data/groups'
 import { useTheme } from '../../context/ThemeContext'
 import ConfirmModal from '../../components/ConfirmModal'
 import './Profile.css'
 
 export default function Profile() {
   const { user, profile, isAdmin } = useAuth()
-  const { groupConfig } = useGroupConfig()
   const { isDark, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const [showLogoutModal, setShowLogoutModal] = useState(false)
@@ -27,6 +24,17 @@ export default function Profile() {
   }
 
   const firstName = user?.displayName?.split(' ')[0] || 'User'
+  const isGuest = profile?.role === 'guest'
+
+  // Friendly role label
+  function getRoleLabel(role) {
+    switch (role) {
+      case 'guest': return 'Guest'
+      case 'admin': return 'Admin'
+      case 'user': return 'Student'
+      default: return role || 'User'
+    }
+  }
 
   return (
     <div className="profile-page">
@@ -59,6 +67,16 @@ export default function Profile() {
                 Admin
               </span>
             )}
+            {isGuest && (
+              <span className="profile-guest-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                Guest
+              </span>
+            )}
           </div>
         </div>
 
@@ -67,20 +85,24 @@ export default function Profile() {
           <h3 className="profile-section-title">Details</h3>
           <div className="profile-rows">
             <ProfileRow
-              icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M7 4v6"/></svg>}
-              label="Reg. Number"
-              value={profile?.regNumber || '—'}
+              icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+              label="Role"
+              value={getRoleLabel(profile?.role)}
             />
-            <ProfileRow
-              icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>}
-              label="Class"
-              value={profile?.class || '—'}
-            />
-            <ProfileRow
-              icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>}
-              label="Section · Group"
-              value={profile?.section ? `Section ${profile.section} · ${getGroupLabel(profile.group || getGroupBySection(profile.section, groupConfig), groupConfig)}` : '—'}
-            />
+            {!isGuest && (
+              <>
+                <ProfileRow
+                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M7 4v6"/></svg>}
+                  label="Reg. Number"
+                  value={profile?.regNumber || '—'}
+                />
+                <ProfileRow
+                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>}
+                  label="Class / Section"
+                  value={profile?.class || profile?.section || '—'}
+                />
+              </>
+            )}
             <ProfileRow
               icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>}
               label="Email"

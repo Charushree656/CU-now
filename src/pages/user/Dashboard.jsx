@@ -5,8 +5,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useEvents } from '../../context/EventsContext'
-import { useGroupConfig } from '../../context/GroupConfigContext'
-import { getGroupBySection } from '../../data/groups'
 import { useUnreadAnnouncements } from '../../hooks/useUnreadAnnouncements'
 import { formatTime, getCountdown } from '../../utils/formatters'
 import { getVenueByName } from '../../data/venues'
@@ -17,7 +15,6 @@ import './Dashboard.css'
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user, profile, isAdmin } = useAuth()
-  const { groupConfig } = useGroupConfig()
   const { hasUnread } = useUnreadAnnouncements()
   const { events, loading } = useEvents()
   const [now, setNow] = useState(new Date())
@@ -29,23 +26,10 @@ export default function Dashboard() {
     return () => clearInterval(timer)
   }, [])
 
-  // Determine current user's group
-  const userGroup = useMemo(() => {
-    return profile?.group || getGroupBySection(profile?.section, groupConfig)
-  }, [profile?.group, profile?.section, groupConfig])
-
-  // Determine current, upcoming events — filtered by group
+  // Filter active events — all users see all events (group filtering removed)
   const activeEvents = useMemo(() => {
-    return events.filter(e => {
-      if (e.status !== 'active') return false
-      // Admins see everything
-      if (isAdmin) return true
-      // No targetGroup or 'all' → visible to everyone
-      if (!e.targetGroup || e.targetGroup === 'all') return true
-      // Match user's group
-      return e.targetGroup === userGroup
-    })
-  }, [events, isAdmin, userGroup])
+    return events.filter(e => e.status === 'active')
+  }, [events])
 
   const happeningNow = useMemo(() => {
     return activeEvents.filter(e => {
@@ -83,7 +67,7 @@ export default function Dashboard() {
             )}
             <div>
               <h1 className="dashboard-greeting">Hey, {firstName}</h1>
-              <p className="dashboard-date">{todayName} · Orientation</p>
+              <p className="dashboard-date">{todayName} · {profile?.role === 'guest' ? 'Guest' : 'Campus Events'}</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
